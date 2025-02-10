@@ -1,0 +1,134 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+#Setup
+```{r}
+library(tidyverse)
+library(dplyr)
+library(skimr)
+library(ggplot2)
+```
+
+#Load dataset
+```{r}
+patient_data = read_csv("full_cohort_data.csv")
+```
+
+```{r}
+#skim(patient_data$sapsi_first)
+
+filter_SAPS = patient_data %>% 
+  select(age,gender_num,sapsi_first,chf_flg,censor_flg,renal_flg,wbc_first,hgb_first,icu_los_day,hospital_los_day) %>%
+  filter(sapsi_first >=15) 
+
+filter_SAPS %>%
+  group_by(gender_num) %>% 
+  summarise(n = n())
+
+filter_SAPS %>%
+  group_by(chf_flg) %>% 
+  summarise(n = n())
+
+filter_SAPS %>%
+  group_by(censor_flg) %>% 
+  summarise(n = n())
+   
+skim(filter_SAPS$age)
+skim(filter_SAPS$gender_num)
+skim(filter_SAPS$sapsi_first)
+
+
+  
+```
+#Visualization - Without confounder
+
+```{r}
+
+filter_SAPS %>% 
+  mutate(agegroup = if_else(age >60, 'Above_60', 'Below_60')) %>% 
+  mutate(heart_failure = if_else(chf_flg ==0, 'Without heart disease', 'With heart disease')) %>% 
+  mutate(mortality = if_else(censor_flg == 0, 'dead', 'alive')) %>% 
+  ggplot(aes(x=agegroup, fill = mortality))+
+  geom_bar(position = "fill")+
+  facet_wrap(~heart_failure)
+
+
+```
+
+
+
+
+#Visualization - With confounder (categorical)
+```{r}
+
+filter_SAPS %>% 
+  mutate(agegroup = if_else(age >60, 'Above_60', 'Below_60')) %>% 
+  mutate(heart_renal = if_else(chf_flg == 0, if_else(renal_flg == 0, "No Heart & Renal Disease", "Only Renal Disease"),if_else(renal_flg == 0, "Only heart disease", "Both Renal & heart Disease") )) %>% 
+  mutate(mortality = if_else(censor_flg == 0, 'dead', 'alive')) %>% 
+  ggplot(aes(x=agegroup, fill = mortality))+
+  geom_bar(position = "fill")+
+  facet_wrap(~heart_renal)
+```
+
+
+#Visualization - With confounder (continuous)
+
+```{r}
+filter_SAPS %>% 
+  mutate(agegroup = if_else(age >60, 'Above_60', 'Below_60')) %>% 
+  mutate(heart_failure = if_else(chf_flg ==0, 'Without heart disease', 'With heart disease')) %>% 
+   mutate(mortality = if_else(censor_flg == 0, 'dead', 'alive')) %>% 
+  ggplot(aes(x=age, y=wbc_first))+
+  geom_point(aes(color = mortality))+
+  geom_smooth(method = lm, se = FALSE)+
+  facet_wrap(~heart_failure+mortality+agegroup,nrow=2)
+```
+
+
+```{r}
+filter_SAPS %>% 
+  mutate(agegroup = if_else(age >60, 'Above_60', 'Below_60')) %>% 
+  mutate(heart_failure = if_else(chf_flg ==0, 'Without heart disease', 'With heart disease')) %>% 
+  mutate(mortality = if_else(censor_flg == 0, 'dead', 'alive')) %>% 
+  ggplot(aes(x=age, y=wbc_first))+
+  geom_violin(aes(color = mortality))+
+  facet_wrap(~heart_failure+agegroup+mortality,nrow=2)
+```
+
+```{r}
+filter_SAPS %>% 
+  mutate(agegroup = if_else(age >60, 'Above_60', 'Below_60')) %>% 
+  mutate(heart_failure = if_else(chf_flg ==0, 'Without heart disease', 'With heart disease')) %>% 
+   mutate(mortality = if_else(censor_flg == 0, 'dead', 'alive')) %>% 
+  ggplot(aes(x=mortality, y=hgb_first))+
+  geom_boxplot(aes(color = mortality))+
+  facet_wrap(~heart_failure+agegroup,nrow=2)
+```
+
+```{r}
+filter_SAPS %>% 
+  mutate(agegroup = if_else(age >60, 'Above_60', 'Below_60')) %>% 
+  mutate(heart_failure = if_else(chf_flg ==0, 'Without heart disease', 'With heart disease')) %>% 
+   mutate(mortality = if_else(censor_flg == 0, 'dead', 'alive')) %>% 
+  ggplot(aes(x=age, y=hgb_first))+
+  geom_boxplot(aes(color = mortality))+
+  facet_wrap(~heart_failure+agegroup,nrow=2)
+```
+
+
+#Triple Aim: Cost factor
+
+```{r}
+
+filter_SAPS %>% 
+  mutate(agegroup = if_else(age >60, 'Above_60', 'Below_60')) %>% 
+  mutate(heart_failure = if_else(chf_flg ==0, 'Without heart disease', 'With heart disease')) %>% 
+   mutate(mortality = if_else(censor_flg == 0, 'dead', 'alive')) %>% 
+  ggplot(aes(x=icu_los_day))+
+  geom_density(aes(color = mortality,fill=mortality))
+
+
+```
+

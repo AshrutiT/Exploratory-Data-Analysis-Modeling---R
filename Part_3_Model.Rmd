@@ -1,0 +1,210 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+# Library
+```{r}
+library(tidymodels)
+library(rpart)
+library(parsnip)
+library(kknn)
+library(naivebayes)
+library(discrim)
+library(baguette)
+library(skimr)
+library(naniar)
+library(tidyverse)
+library(discrim)
+library(mda)
+```
+
+# Dataset
+```{r}
+patient_data = read_csv("full_cohort_data.csv")
+```
+
+# Meta Data
+```{r}
+filter_SAPS = patient_data %>%
+  select(age,gender_num,sapsi_first,chf_flg,censor_flg,renal_flg,
+         wbc_first,hgb_first,icu_los_day,hospital_los_day) %>%
+  filter(sapsi_first >=15) 
+
+skim(filter_SAPS) # No missing value
+```
+
+# Pre preprocessing
+```{r}
+data = filter_SAPS %>% 
+  mutate(censor_flg = if_else(censor_flg == 0, 'Dead', 'Alive'))
+
+set.seed(1)
+split_data = initial_split(data, prop = 2/3)
+
+my_recipe = recipe(training(split_data), censor_flg ~ .)
+```
+
+# Decision Tree
+```{r}
+tree_model =
+  decision_tree() %>% 
+  set_engine('rpart') %>% 
+  set_mode('classification')
+
+tree_workflow =
+  workflow() %>% 
+  add_recipe(my_recipe) %>% 
+  add_model(tree_model)
+
+tree_results = last_fit(tree_workflow,
+                        split = split_data,
+                        metrics = metric_set(roc_auc, pr_auc,
+                                             accuracy, kap, sens,
+                                             ppv, npv))
+
+tree_results %>% collect_metrics()
+tree_results %>% collect_predictions()
+```
+```{r}
+tree_results %>% 
+  extract_fit_engine() %>% 
+  rpart.plot::rpart.plot(roundint=FALSE)
+```
+
+# SVM
+```{r}
+svm_model = svm_poly() %>%
+  set_engine("kernlab") %>% 
+  set_mode("classification")
+
+svm_workflow = workflow() %>%
+  add_recipe(my_recipe) %>%
+  add_model(svm_model)
+
+svm_results = last_fit(svm_workflow,
+                       split = split_data,
+                       metrics = metric_set(roc_auc, pr_auc,
+                                            accuracy, kap, sens,
+                                            ppv, npv))
+
+svm_results %>% collect_metrics()
+```
+
+# Neural Network
+```{r}
+nn = mlp() %>%
+  set_engine("nnet") %>% 
+  set_mode("classification")
+
+nn_workflow = workflow() %>%
+  add_recipe(my_recipe) %>%
+  add_model(nn)
+
+nn_results = last_fit(nn_workflow,
+                      split = split_data,
+                      metrics = metric_set(roc_auc, pr_auc,
+                                           accuracy, kap, sens,
+                                           ppv, npv))
+
+nn_results %>% collect_metrics()
+```
+
+# NB
+```{r}
+nb_model = naive_Bayes() %>% 
+  set_engine('naivebayes') %>% 
+  set_mode('classification')
+
+nb_workflow = workflow() %>% 
+  add_recipe(my_recipe) %>% 
+  add_model(nb_model)
+
+nb_results = last_fit(nb_workflow,
+                      split = split_data,
+                      metrics = metric_set(roc_auc, pr_auc,
+                                           accuracy, kap, sens,
+                                           ppv, npv))
+
+nb_results %>% collect_metrics()
+```
+
+# Logistic Regression
+```{r}
+log_model = logistic_reg() %>% 
+  set_engine('glm') %>% 
+  set_mode('classification')
+
+log_workflow = workflow() %>% 
+  add_recipe(my_recipe) %>% 
+  add_model(log_model)
+
+log_results = last_fit(log_workflow,
+                       split = split_data,
+                       metrics = metric_set(roc_auc, pr_auc,
+                                            accuracy, kap, sens,
+                                            ppv, npv))
+
+log_results %>% collect_metrics()
+```
+
+# Bagged Tree
+```{r}
+bag_model = bag_tree() %>% 
+  set_engine('rpart') %>% 
+  set_mode('classification')
+
+bag_workflow = workflow() %>% 
+  add_recipe(my_recipe) %>% 
+  add_model(bag_model)
+
+bag_results = last_fit(bag_workflow,
+                       split = split_data,
+                       metrics = metric_set(roc_auc, pr_auc,
+                                            accuracy, kap, sens,
+                                            ppv, npv))
+
+bag_results %>% collect_metrics()
+```
+
+
+# KNN
+```{r}
+knn_model = nearest_neighbor() %>% 
+  set_engine("kknn") %>% 
+  set_mode('classification')
+
+knn_workflow = workflow() %>% 
+  add_recipe(my_recipe)
+
+knn1_wf = knn_workflow %>% 
+  add_model(knn_model %>% set_args(neighbors = 2))
+
+knn1_fit = last_fit(knn1_wf,
+                    split = split_data,
+                    metrics = metric_set(roc_auc, pr_auc,
+                                         accuracy, kap, sens,
+                                         ppv, npv))
+
+knn1_fit %>% collect_metrics()
+```
+
+# LDA
+```{r}
+lda_model = discrim_linear() %>% 
+  set_engine("MASS") %>% 
+  set_mode('classification')
+
+lda_workflow = workflow() %>% 
+  add_recipe(my_recipe) %>% 
+  add_model(lda_model)
+
+lda_fit = last_fit(lda_workflow,
+                   split = split_data,
+                   metrics = metric_set(roc_auc, pr_auc,
+                                        accuracy, kap, sens,
+                                        ppv, npv))
+
+lda_fit %>% collect_metrics()
+```
+
